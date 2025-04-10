@@ -73,111 +73,13 @@ type (
 )
 
 func (m CliModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.LanguageList.SetWidth(msg.Width)
-		m.ProjectNameInput.Width = msg.Width
-		return m, nil
+		return m.handleWindowSize(msg)
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			// here, only changing the state
-			if m.CurrentState == StateWelcome {
-				m.CurrentState = StateProjectName
-				m.ProjectNameInput.Focus()
-				return m, nil
-			}
-			if m.CurrentState == StateProjectName {
-				m.CurrentState = StateLanguage
-				return m, nil
-			}
-
-			if m.CurrentState == StateLanguage {
-				i, ok := m.LanguageList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedLanguage = string(i)
-				}
-				m.CurrentState = StatePackageManager
-				return m, nil
-			}
-
-			if m.CurrentState == StatePackageManager {
-				i, ok := m.PackageManagerList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedPackageManager = string(i)
-				}
-				m.CurrentState = StateTestFramework
-				return m, nil
-			}
-
-			if m.CurrentState == StateTestFramework {
-				i, ok := m.TestFrameworkList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedTestFramework = string(i)
-				}
-				m.CurrentState = StateLoggerLibrary
-				return m, nil
-			}
-
-			if m.CurrentState == StateLoggerLibrary {
-				i, ok := m.LoggerLibraryList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedLoggerLibrary = string(i)
-				}
-				m.CurrentState = StateDatabase
-				return m, nil
-			}
-
-			if m.CurrentState == StateDatabase {
-				i, ok := m.DatabaseList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedDatabase = string(i)
-				}
-				m.CurrentState = StateORM
-				return m, nil
-			}
-
-			if m.CurrentState == StateORM {
-				i, ok := m.ORMList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedORM = string(i)
-				}
-				m.CurrentState = StateConfig
-				return m, nil
-			}
-
-			if m.CurrentState == StateConfig {
-				i, ok := m.ConfigList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedConfig = string(i)
-				}
-				m.CurrentState = StateCodingStyle
-				return m, nil
-			}
-
-			if m.CurrentState == StateCodingStyle {
-				i, ok := m.CodingStyleList.SelectedItem().(selector.Item)
-				if ok {
-					m.SelectedCodingStyle = string(i)
-				}
-				m.CurrentState = StateFolderStructure
-				return m, nil
-			}
-
-			if m.CurrentState == StateFolderStructure {
-				// Create folder structure
-				err := structure.CreateBaseFileStructure(m.ProjectNameInput.Value(), m.SelectedLanguage)
-				if err != nil {
-					fmt.Printf("error creating folder structure: %v", err)
-					return m, tea.Quit
-				}
-				// todo: transition to next state
-				// m.CurrentState = StateFolderStructure
-				return m, nil
-			}
-
+			return m.handleEnterKey()
 		case tea.KeyEsc, tea.KeyCtrlC:
 			return m, tea.Quit
 		}
@@ -186,52 +88,98 @@ func (m CliModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if m.CurrentState == StateProjectName {
-		m.ProjectNameInput, cmd = m.ProjectNameInput.Update(msg)
-		return m, cmd
-	}
+	return m.updateCurrentState(msg)
+}
 
-	if m.CurrentState == StateLanguage {
-		m.LanguageList, cmd = m.LanguageList.Update(msg)
-		return m, cmd
-	}
-
-	if m.CurrentState == StatePackageManager {
-		m.PackageManagerList, cmd = m.PackageManagerList.Update(msg)
-		return m, cmd
-	}
-
-	if m.CurrentState == StateTestFramework {
-		m.TestFrameworkList, cmd = m.TestFrameworkList.Update(msg)
-		return m, cmd
-	}
-
-	if m.CurrentState == StateLoggerLibrary {
-		m.LoggerLibraryList, cmd = m.LoggerLibraryList.Update(msg)
-		return m, cmd
-	}
-
-	if m.CurrentState == StateDatabase {
-		m.DatabaseList, cmd = m.DatabaseList.Update(msg)
-		return m, cmd
-	}
-
-	if m.CurrentState == StateORM {
-		m.ORMList, cmd = m.ORMList.Update(msg)
-		return m, cmd
-	}
-
-	if m.CurrentState == StateConfig {
-		m.ConfigList, cmd = m.ConfigList.Update(msg)
-		return m, cmd
-	}
-
-	if m.CurrentState == StateCodingStyle {
-		m.CodingStyleList, cmd = m.CodingStyleList.Update(msg)
-		return m, cmd
-	}
-
+func (m CliModel) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.LanguageList.SetWidth(msg.Width)
+	m.ProjectNameInput.Width = msg.Width
 	return m, nil
+}
+
+func (m CliModel) handleEnterKey() (tea.Model, tea.Cmd) {
+	var nextState AppState
+	var err error
+
+	switch m.CurrentState {
+	case StateWelcome:
+		nextState = StateProjectName
+		m.ProjectNameInput.Focus()
+	case StateProjectName:
+		nextState = StateLanguage
+	case StateLanguage:
+		m.SelectedLanguage = m.getSelectedItem(m.LanguageList)
+		nextState = StatePackageManager
+	case StatePackageManager:
+		m.SelectedPackageManager = m.getSelectedItem(m.PackageManagerList)
+		nextState = StateTestFramework
+	case StateTestFramework:
+		m.SelectedTestFramework = m.getSelectedItem(m.TestFrameworkList)
+		nextState = StateLoggerLibrary
+	case StateLoggerLibrary:
+		m.SelectedLoggerLibrary = m.getSelectedItem(m.LoggerLibraryList)
+		nextState = StateDatabase
+	case StateDatabase:
+		m.SelectedDatabase = m.getSelectedItem(m.DatabaseList)
+		nextState = StateORM
+	case StateORM:
+		m.SelectedORM = m.getSelectedItem(m.ORMList)
+		nextState = StateConfig
+	case StateConfig:
+		m.SelectedConfig = m.getSelectedItem(m.ConfigList)
+		nextState = StateCodingStyle
+	case StateCodingStyle:
+		m.SelectedCodingStyle = m.getSelectedItem(m.CodingStyleList)
+		nextState = StateFolderStructure
+	case StateFolderStructure:
+		err = structure.CreateBaseFileStructure(m.ProjectNameInput.Value(), m.SelectedLanguage)
+		if err != nil {
+			fmt.Printf("error creating folder structure: %v", err)
+			return m, tea.Quit
+		}
+		// nextState could be set to the next state here
+		// For now we're not changing state since the original implementation doesn't
+	}
+
+	if err == nil {
+		m.CurrentState = nextState
+	}
+	
+	return m, nil
+}
+
+func (m CliModel) getSelectedItem(listModel list.Model) string {
+	if i, ok := listModel.SelectedItem().(selector.Item); ok {
+		return string(i)
+	}
+	return ""
+}
+
+func (m CliModel) updateCurrentState(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch m.CurrentState {
+	case StateProjectName:
+		m.ProjectNameInput, cmd = m.ProjectNameInput.Update(msg)
+	case StateLanguage:
+		m.LanguageList, cmd = m.LanguageList.Update(msg)
+	case StatePackageManager:
+		m.PackageManagerList, cmd = m.PackageManagerList.Update(msg)
+	case StateTestFramework:
+		m.TestFrameworkList, cmd = m.TestFrameworkList.Update(msg)
+	case StateLoggerLibrary:
+		m.LoggerLibraryList, cmd = m.LoggerLibraryList.Update(msg)
+	case StateDatabase:
+		m.DatabaseList, cmd = m.DatabaseList.Update(msg)
+	case StateORM:
+		m.ORMList, cmd = m.ORMList.Update(msg)
+	case StateConfig:
+		m.ConfigList, cmd = m.ConfigList.Update(msg)
+	case StateCodingStyle:
+		m.CodingStyleList, cmd = m.CodingStyleList.Update(msg)
+	}
+
+	return m, cmd
 }
 
 func (m CliModel) View() string {
